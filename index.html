@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Anki</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+    --accent: #7c6fff; --accent-dim: #7c6fff22;
+    --text: #e8e9f0; --muted: #6b6e80;
+    --success: #4ade80; --error: #f87171; --card-bg: #12151e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+  .container { max-width: 860px; margin: 0 auto; }
+
+  .layout { display: grid; grid-template-columns: 1fr 270px; gap: 1.5rem; align-items: start; }
+  @media (max-width: 700px) { .layout { grid-template-columns: 1fr; } .sidebar { order: -1; } }
+
+  header { margin-bottom: 2rem; grid-column: 1 / -1; }
+  .logo { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+  h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
+  .subtitle { font-size: 0.82rem; color: var(--muted); }
+
+  .notice {
+    display: flex; align-items: flex-start; gap: 0.5rem;
+    background: #fbbf2410; border: 1px solid #fbbf2440; border-radius: 8px;
+    padding: 0.6rem 0.8rem; margin-top: 0.5rem; font-size: 0.76rem; color: #fbbf24;
+    grid-column: 1 / -1;
+  }
+  .notice-icon { flex-shrink: 0; margin-top: 0.05rem; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.4rem; margin-bottom: 1.1rem; }
+  .card-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+
+  textarea { width: 100%; min-height: 140px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; line-height: 1.6; resize: vertical; outline: none; transition: border-color 0.15s; }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .divider { display: flex; align-items: center; gap: 0.8rem; margin: 0.9rem 0; }
+  .divider-line { flex: 1; height: 1px; background: var(--border); }
+  .divider-text { font-size: 0.7rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 1.2rem; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--card-bg); }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+  .upload-zone .icon { font-size: 1.4rem; margin-bottom: 0.3rem; }
+  .upload-zone p { font-size: 0.8rem; color: var(--muted); }
+  .upload-zone strong { color: var(--accent); }
+  #file-input { display: none; }
+
+  .file-list { margin-top: 0.65rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .file-item { display: flex; align-items: center; justify-content: space-between; background: var(--card-bg); border: 1px solid var(--border); border-radius: 7px; padding: 0.4rem 0.7rem; }
+  .file-item-name { font-size: 0.78rem; color: var(--success); font-family: 'JetBrains Mono', monospace; }
+  .file-item-size { font-size: 0.7rem; color: var(--muted); margin-left: 0.4rem; }
+  .file-remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.95rem; padding: 0 0.2rem; transition: color 0.15s; }
+  .file-remove:hover { color: var(--error); }
+
+  .source-summary { font-size: 0.76rem; color: var(--muted); margin-top: 0.55rem; padding: 0.35rem 0.65rem; background: var(--card-bg); border-radius: 6px; border: 1px solid var(--border); display: none; }
+  .source-summary.visible { display: block; }
+  .source-summary span { color: var(--accent); font-weight: 600; }
+
+  .options-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .option-group { display: flex; flex-direction: column; gap: 0.35rem; }
+  .option-group label { font-size: 0.73rem; color: var(--muted); font-weight: 500; }
+  .toggle-group { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .toggle-btn { padding: 0.38rem 0.85rem; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 0.8rem; font-family: inherit; transition: all 0.15s; }
+  .toggle-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+  .num-input { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card-bg); }
+  .num-btn { width: 30px; height: 32px; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: color 0.15s; }
+  .num-btn:hover { color: var(--text); }
+  #num-cards { width: 36px; text-align: center; border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: transparent; color: var(--text); font-size: 0.83rem; font-family: inherit; padding: 0.28rem 0; outline: none; }
+
+  .btn-generate { width: 100%; padding: 0.82rem; background: var(--accent); border: none; border-radius: 10px; color: #fff; font-size: 0.88rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: opacity 0.15s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+  .btn-generate:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+  .btn-generate:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .status { font-size: 0.8rem; color: var(--muted); text-align: center; padding: 0.45rem; min-height: 1.4rem; }
+  .status.error { color: var(--error); }
+  .status.success { color: var(--success); }
+
+  #preview-section { display: none; }
+  .preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9rem; }
+  .preview-count { font-size: 0.78rem; color: var(--muted); background: var(--card-bg); padding: 0.22rem 0.55rem; border-radius: 20px; border: 1px solid var(--border); }
+
+  .flashcard { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 0.6rem; }
+  .flashcard-front { font-size: 0.83rem; line-height: 1.6; margin-bottom: 0.55rem; white-space: pre-wrap; }
+  .flashcard-back { font-size: 0.78rem; color: var(--success); font-weight: 600; font-family: 'JetBrains Mono', monospace; border-top: 1px solid var(--border); padding-top: 0.45rem; }
+
+  .btn-download { width: 100%; padding: 0.82rem; background: transparent; border: 1px solid var(--success); border-radius: 10px; color: var(--success); font-size: 0.88rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 0.9rem; }
+  .btn-download:hover { background: #4ade8015; }
+
+  .csv-export { margin-top: 0.9rem; display: none; }
+  .csv-export-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.4rem; }
+  .csv-export-label strong { color: var(--text); }
+  .csv-text { width: 100%; min-height: 120px; max-height: 220px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 0.9rem; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; line-height: 1.5; resize: vertical; outline: none; }
+  .btn-copy { width: 100%; margin-top: 0.5rem; padding: 0.6rem; background: transparent; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 0.82rem; font-family: inherit; cursor: pointer; transition: all 0.15s; }
+  .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-copy.copied { border-color: var(--success); color: var(--success); }
+
+  /* Sidebar */
+  .sidebar { position: sticky; top: 1.5rem; }
+  .history-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+  .history-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .btn-clear-history { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.72rem; font-family: inherit; transition: color 0.15s; padding: 0; }
+  .btn-clear-history:hover { color: var(--error); }
+
+  .history-empty { font-size: 0.8rem; color: var(--muted); text-align: center; padding: 1.5rem 0; }
+
+  .history-item { background: var(--card-bg); border: 1px solid var(--border); border-radius: 9px; padding: 0.75rem 0.85rem; margin-bottom: 0.6rem; transition: border-color 0.15s; }
+  .history-item:hover { border-color: var(--accent); }
+  .history-item.active-session { border-color: var(--accent); background: var(--accent-dim); }
+  .history-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4rem; }
+  .history-item-topic { font-size: 0.82rem; font-weight: 500; color: var(--text); line-height: 1.3; flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .history-item-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0; flex-shrink: 0; transition: color 0.15s; }
+  .history-item-del:hover { color: var(--error); }
+  .history-item-meta { display: flex; gap: 0.5rem; margin-top: 0.4rem; align-items: center; flex-wrap: wrap; }
+  .badge { font-size: 0.68rem; padding: 0.15rem 0.45rem; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); }
+  .badge.cards { color: var(--accent); border-color: var(--accent); }
+  .history-date { font-size: 0.68rem; color: var(--muted); }
+  .history-actions { display: flex; gap: 0.4rem; margin-top: 0.55rem; }
+  .btn-hist { flex: 1; padding: 0.3rem; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--muted); font-size: 0.72rem; font-family: inherit; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .btn-hist:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-hist.dl:hover { border-color: var(--success); color: var(--success); }
+
+  .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 0.55rem; overflow: hidden; display: none; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; width: 0%; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🃏</div>
+      <h1>Generador de Anki</h1>
+    </div>
+    <p class="subtitle">Convierte tus notas en flashcards de opción múltiple · CSV listo para importar</p>
+  </header>
+
+  <div class="layout">
+    <div class="notice">
+      <span class="notice-icon">⚠️</span>
+      <span>El historial se guarda en este navegador. Si borras los datos del sitio, cambias de navegador o usas otra computadora, el historial no estará disponible. Descarga el CSV de cada sesión para conservar tus tarjetas.</span>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="card">
+        <div class="card-label">1 · Tus notas</div>
+        <textarea id="notes-text" placeholder="Pega aquí tus notas, apuntes o resúmenes... (opcional si subes archivos)"></textarea>
+        <div class="divider">
+          <div class="divider-line"></div>
+          <div class="divider-text">y / o</div>
+          <div class="divider-line"></div>
+        </div>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+          <div class="icon">📂</div>
+          <p>Arrastra archivos aquí o <strong>haz clic para seleccionar</strong></p>
+          <p style="margin-top:0.25rem;font-size:0.73rem;">Formatos: .txt · .md &nbsp;·&nbsp; Puedes subir varios a la vez</p>
+        </div>
+        <input type="file" id="file-input" accept=".txt,.md" multiple onchange="handleFiles(event)">
+        <div class="file-list" id="file-list"></div>
+        <div class="source-summary" id="source-summary">Fuentes listas: <span id="summary-text"></span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">2 · Configuración</div>
+        <div class="options-row">
+          <div class="option-group">
+            <label>Opciones por pregunta</label>
+            <div class="toggle-group">
+              <button class="toggle-btn" id="opt-3" onclick="setOptions(3)">A–C (3)</button>
+              <button class="toggle-btn active" id="opt-4" onclick="setOptions(4)">A–D (4)</button>
+            </div>
+          </div>
+          <div class="option-group">
+            <label>Número de tarjetas</label>
+            <div class="num-input">
+              <button class="num-btn" onclick="changeNum(-5)">−</button>
+              <input type="number" id="num-cards" value="15" min="5" max="100">
+              <button class="num-btn" onclick="changeNum(5)">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-generate" id="gen-btn" onclick="generate()">✨ Generar flashcards</button>
+      <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="status" id="status"></div>
+
+      <div id="preview-section" class="card">
+        <div class="preview-header">
+          <div class="card-label" style="margin:0">3 · Vista previa</div>
+          <span class="preview-count" id="preview-count">0 tarjetas</span>
+        </div>
+        <div id="cards-container"></div>
+        <button class="btn-download" onclick="showCSV(currentFlashcards, numOptions)">📋 Exportar CSV para Anki</button>
+        <div class="csv-export" id="csv-export">
+          <div class="csv-export-label">Copia este contenido → pégalo en un archivo <strong>.csv</strong> → impórtalo en Anki</div>
+          <textarea class="csv-text" id="csv-text" readonly onclick="this.select()"></textarea>
+          <button class="btn-copy" id="btn-copy" onclick="copyCSV()">📋 Copiar al portapapeles</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="card">
+        <div class="history-header">
+          <div class="history-title">📚 Historial</div>
+          <button class="btn-clear-history" onclick="clearHistory()">Borrar todo</button>
+        </div>
+        <div id="history-list"><div class="history-empty">Aún no hay sesiones guardadas.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let numOptions = 4;
+let currentFlashcards = [];
+let uploadedFiles = new Map();
+let history = [];
+let activeSessionId = null;
+
+const STORAGE_KEY = 'anki_history_v1';
+
+function saveHistory() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(history)); } catch(e) {}
+}
+
+function loadHistory() {
+  try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) history = JSON.parse(raw); } catch(e) { history = []; }
+  renderHistory();
+}
+
+function setOptions(n) {
+  numOptions = n;
+  document.getElementById('opt-3').classList.toggle('active', n === 3);
+  document.getElementById('opt-4').classList.toggle('active', n === 4);
+}
+
+function changeNum(delta) {
+  const input = document.getElementById('num-cards');
+  input.value = Math.min(100, Math.max(5, parseInt(input.value || 15) + delta));
+}
+
+function handleFiles(event) { Array.from(event.target.files).forEach(readFile); event.target.value = ''; }
+
+function readFile(file) {
+  if (uploadedFiles.has(file.name)) return;
+  const reader = new FileReader();
+  reader.onload = e => { uploadedFiles.set(file.name, { content: e.target.result, size: file.size }); renderFileList(); updateSummary(); };
+  reader.readAsText(file);
+}
+
+function removeFile(name) { uploadedFiles.delete(name); renderFileList(); updateSummary(); }
+
+function renderFileList() {
+  const list = document.getElementById('file-list');
+  list.innerHTML = '';
+  uploadedFiles.forEach((meta, name) => {
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    const kb = Math.round(meta.size / 102.4) / 10;
+    item.innerHTML = `<div><span class="file-item-name">📄 ${esc(name)}</span><span class="file-item-size">${kb} KB</span></div><button class="file-remove" onclick="removeFile('${esc(name)}')" title="Eliminar">✕</button>`;
+    list.appendChild(item);
+  });
+}
+
+function updateSummary() {
+  const summaryEl = document.getElementById('source-summary');
+  const hasText = document.getElementById('notes-text').value.trim().length > 0;
+  const fc = uploadedFiles.size;
+  if (!hasText && fc === 0) { summaryEl.classList.remove('visible'); return; }
+  const parts = [];
+  if (hasText) parts.push('texto pegado');
+  if (fc > 0) parts.push(`${fc} archivo${fc > 1 ? 's' : ''}`);
+  document.getElementById('summary-text').textContent = parts.join(' + ');
+  summaryEl.classList.add('visible');
+}
+
+document.getElementById('notes-text').addEventListener('input', updateSummary);
+
+const uploadZone = document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); Array.from(e.dataTransfer.files).forEach(readFile); });
+
+function setStatus(msg, type = '') { const el = document.getElementById('status'); el.textContent = msg; el.className = 'status ' + type; }
+function setProgress(pct) { const bar = document.getElementById('progress-bar'); const fill = document.getElementById('progress-fill'); bar.style.display = pct > 0 ? 'block' : 'none'; fill.style.width = pct + '%'; }
+function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;'); }
+
+async function generate() {
+  const typedText = document.getElementById('notes-text').value.trim();
+  const fileParts = [];
+  uploadedFiles.forEach((meta, name) => fileParts.push(`--- Archivo: ${name} ---\n${meta.content.trim()}`));
+  const allParts = [];
+  if (typedText) allParts.push('--- Notas escritas ---\n' + typedText);
+  allParts.push(...fileParts);
+  const notes = allParts.join('\n\n');
+  if (!notes.trim()) { setStatus('⚠️ Agrega texto o sube al menos un archivo.', 'error'); return; }
+
+  const numCards = parseInt(document.getElementById('num-cards').value) || 15;
+  const optLabels = numOptions === 3 ? 'A, B y C' : 'A, B, C y D';
+  const optCount  = numOptions === 3 ? 'tres (3)' : 'cuatro (4)';
+
+  const prompt = `Eres un experto en creación de preguntas de evaluación médica y académica siguiendo principios de psicometría rigurosa.
+
+A partir de las siguientes notas, genera exactamente ${numCards} preguntas de opción múltiple de alta calidad.
+
+REGLAS ESTRICTAS:
+1. Cada pregunta tiene ${optCount} opciones: ${optLabels}
+2. Una sola respuesta correcta por pregunta
+3. Distractores plausibles y relacionados (no absurdos)
+4. NO uses pistas evidentes (respuesta correcta no sistemáticamente más larga)
+5. Distribuye aleatoriamente la respuesta correcta entre ${optLabels}
+6. NO repitas ni dupliques preguntas ni conceptos similares
+7. Cubre diferentes aspectos de las notas
+8. Varía el tipo: definición, aplicación, comparación, consecuencias, mecanismos
+9. Evita preguntas negativas salvo necesidad pedagógica
+10. Si hay múltiples fuentes, distribuye las preguntas proporcionalmente
+
+FORMATO DE RESPUESTA — JSON puro, sin markdown, sin texto adicional:
+{
+  "topic": "Tema principal detectado en 4-6 palabras",
+  "cards": [
+    {
+      "question": "¿Texto de la pregunta?",
+      "A": "Opción A",
+      "B": "Opción B",
+      "C": "Opción C"${numOptions === 4 ? ',\n      "D": "Opción D"' : ''},
+      "answer": "B) Texto de la opción correcta"
+    }
+  ]
+}
+
+NOTAS:
+${notes}`;
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generando...';
+  document.getElementById('preview-section').style.display = 'none';
+  setStatus('Analizando tus notas con IA...', '');
+  setProgress(20);
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: prompt }] })
+    });
+    setProgress(70); setStatus('Procesando respuesta...', '');
+    if (!response.ok) throw new Error(`API ${response.status}`);
+
+    const data = await response.json();
+    const rawText = data.content.map(b => b.text || '').join('');
+    const clean = rawText.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    currentFlashcards = parsed.cards || [];
+    if (!currentFlashcards.length) throw new Error('Sin tarjetas.');
+
+    const session = { id: Date.now().toString(), topic: parsed.topic || 'Sin título', date: new Date().toISOString(), numOptions, cards: currentFlashcards };
+    history.unshift(session);
+    if (history.length > 50) history = history.slice(0, 50);
+    saveHistory();
+    activeSessionId = session.id;
+    renderHistory();
+
+    setProgress(100);
+    renderPreview(currentFlashcards, numOptions);
+    setStatus(`✓ ${currentFlashcards.length} tarjetas generadas.`, 'success');
+
+  } catch (err) {
+    console.error(err);
+    setStatus('Error al generar. Verifica que tus notas tengan suficiente contenido.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✨ Generar flashcards';
+    setTimeout(() => setProgress(0), 800);
+  }
+}
+
+function renderPreview(cards, opts) {
+  const container = document.getElementById('cards-container');
+  const section   = document.getElementById('preview-section');
+  container.innerHTML = '';
+  document.getElementById('preview-count').textContent = `${cards.length} tarjeta${cards.length !== 1 ? 's' : ''}`;
+  cards.forEach(card => {
+    const optKeys = opts === 3 ? ['A','B','C'] : ['A','B','C','D'];
+    const front = `${card.question}\n\n${optKeys.map(k => `${k}) ${card[k]}`).join('\n')}`;
+    const div = document.createElement('div');
+    div.className = 'flashcard';
+    div.innerHTML = `<div class="flashcard-front">${esc(front)}</div><div class="flashcard-back">✓ ${esc(card.answer)}</div>`;
+    container.appendChild(div);
+  });
+  section.style.display = 'block';
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function buildCSV(cards, opts) {
+  const o = opts || numOptions;
+  const optKeys = o === 3 ? ['A','B','C'] : ['A','B','C','D'];
+  return cards.map(card => {
+    const front = `${card.question}\n\n${optKeys.map(k => `${k}) ${card[k]}`).join('\n')}`;
+    return `"${front.replace(/"/g,'""')}","${card.answer.replace(/"/g,'""')}"`;
+  }).join('\n');
+}
+
+function showCSV(cards, opts) {
+  const csv = buildCSV(cards, opts);
+  const exportEl = document.getElementById('csv-export');
+  const textEl   = document.getElementById('csv-text');
+  textEl.value = csv;
+  exportEl.style.display = 'block';
+  textEl.select();
+  exportEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function copyCSV() {
+  const textEl = document.getElementById('csv-text');
+  const btn = document.getElementById('btn-copy');
+  textEl.select();
+  try {
+    navigator.clipboard.writeText(textEl.value).then(() => {
+      btn.textContent = '✓ ¡Copiado!'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '📋 Copiar al portapapeles'; btn.classList.remove('copied'); }, 2000);
+    }).catch(() => flashCopyFallback(btn));
+  } catch(e) { flashCopyFallback(btn); }
+}
+
+function flashCopyFallback(btn) {
+  document.execCommand('copy');
+  btn.textContent = '✓ ¡Copiado!'; btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = '📋 Copiar al portapapeles'; btn.classList.remove('copied'); }, 2000);
+}
+
+function downloadSession(id) { const s = history.find(s => s.id === id); if (s) showCSV(s.cards, s.numOptions); }
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-MX', { day:'2-digit', month:'short' }) + ' ' +
+         d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!history.length) { list.innerHTML = '<div class="history-empty">Aún no hay sesiones guardadas.</div>'; return; }
+  list.innerHTML = '';
+  history.forEach(session => {
+    const isActive = session.id === activeSessionId;
+    const item = document.createElement('div');
+    item.className = 'history-item' + (isActive ? ' active-session' : '');
+    item.innerHTML = `
+      <div class="history-item-top">
+        <div class="history-item-topic">${esc(session.topic)}</div>
+        <button class="history-item-del" onclick="deleteSession('${session.id}', event)" title="Eliminar">✕</button>
+      </div>
+      <div class="history-item-meta">
+        <span class="badge cards">${session.cards.length} tarjetas</span>
+        <span class="badge">${session.numOptions} opciones</span>
+        <span class="history-date">${formatDate(session.date)}</span>
+      </div>
+      <div class="history-actions">
+        <button class="btn-hist" onclick="loadSession('${session.id}')">👁 Ver</button>
+        <button class="btn-hist dl" onclick="downloadSession('${session.id}')">⬇ CSV</button>
+      </div>`;
+    list.appendChild(item);
+  });
+}
+
+function loadSession(id) {
+  const session = history.find(s => s.id === id);
+  if (!session) return;
+  activeSessionId = id; currentFlashcards = session.cards; numOptions = session.numOptions;
+  document.getElementById('opt-3').classList.toggle('active', numOptions === 3);
+  document.getElementById('opt-4').classList.toggle('active', numOptions === 4);
+  renderPreview(session.cards, session.numOptions);
+  renderHistory();
+  setStatus(`Mostrando sesión: ${session.topic}`, 'success');
+}
+
+function deleteSession(id, event) {
+  event.stopPropagation();
+  history = history.filter(s => s.id !== id);
+  if (activeSessionId === id) { activeSessionId = null; document.getElementById('preview-section').style.display = 'none'; }
+  saveHistory(); renderHistory();
+}
+
+function clearHistory() {
+  if (!history.length) return;
+  if (!confirm('¿Borrar todo el historial? Esta acción no se puede deshacer.')) return;
+  history = []; activeSessionId = null; currentFlashcards = [];
+  document.getElementById('preview-section').style.display = 'none';
+  saveHistory(); renderHistory();
+}
+
+loadHistory();
+</script>
+</body>
+</html>
